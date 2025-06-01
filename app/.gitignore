@@ -1,0 +1,10 @@
+# Tests folders because not used atm
+src/androidTest
+src/test
+
+# App-specific build outputs
+build/
+
+# App-specific secrets
+src/main/assets/secrets/
+app-secrets.properties
