@@ -58,42 +58,76 @@ jobs:
 
       - name: Get APK path and rename
         run: |
-          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
-          APP_NAME=$(grep "android:label" app/src/main/AndroidManifest.xml | sed 's/.*android:label="\([^"]*\)".*/\1/' | tr ' ' '-' | tr '[:upper:]' '[:lower:]')
-          VERSION_NAME=$(grep "versionName" app/build.gradle.kts | sed 's/.*versionName.*"\([^"]*\)".*/\1/')
-          
-          # If we can't extract app name, use a default
-          if [ -z "$APP_NAME" ]; then
-            APP_NAME="android-app"
+          echo "Searching for APK in app/build/outputs/apk/release/"
+          APK_PATH_FOUND=$(find app/build/outputs/apk/release -name "*.apk" -type f | head -1)
+
+          if [ -z "$APK_PATH_FOUND" ]; then
+            echo "Error: No APK found in app/build/outputs/apk/release. Listing contents:"
+            ls -R app/build/outputs/apk/release || echo "Path app/build/outputs/apk/release does not exist or is empty."
+            exit 1
           fi
-          
-          # If we can't extract version, use the tag name
-          if [ -z "$VERSION_NAME" ]; then
-            VERSION_NAME="${GITHUB_REF#refs/tags/}"
+          echo "Found APK at: $APK_PATH_FOUND"
+
+          # Use repository name as a base for the app name (more reliable for filenames)
+          # Sanitize it: lowercase and replace spaces with hyphens
+          APP_BASENAME_RAW="${{ github.event.repository.name }}"
+          APP_BASENAME=$(echo "$APP_BASENAME_RAW" | tr ' ' '-' | tr '[:upper:]' '[:lower:]')
+          if [ -z "$APP_BASENAME" ]; then
+            APP_BASENAME="android-app" # Fallback
           fi
-          
-          NEW_APK_NAME="${APP_NAME}-${VERSION_NAME}.apk"
-          cp "$APK_PATH" "$NEW_APK_NAME"
+          echo "Using app basename for file: $APP_BASENAME"
+
+          # Use the Git tag for the version (most reliable for releases)
+          VERSION_TAG_FROM_REF="${GITHUB_REF#refs/tags/}"
+          # Remove 'v' prefix if it exists, e.g. v0.1.0 -> 0.1.0
+          VERSION_FOR_FILENAME=$(echo "$VERSION_TAG_FROM_REF" | sed 's/^v//')
+
+          if [ -z "$VERSION_FOR_FILENAME" ]; then
+            echo "Warning: Could not determine version from Git tag ($GITHUB_REF). Using 'unknown-version'."
+            VERSION_FOR_FILENAME="unknown-version"
+          fi
+          echo "Using version for filename: $VERSION_FOR_FILENAME"
+
+          NEW_APK_NAME="${APP_BASENAME}-${VERSION_FOR_FILENAME}.apk"
+          echo "New APK name will be: $NEW_APK_NAME"
+
+          echo "Copying '$APK_PATH_FOUND' to '$NEW_APK_NAME'"
+          cp "$APK_PATH_FOUND" "$NEW_APK_NAME"
           echo "APK_FILE=$NEW_APK_NAME" >> $GITHUB_ENV
 
       - name: Get AAB path and rename
         run: |
-          AAB_PATH=$(find app/build/outputs/bundle/release -name "*.aab" | head -1)
-          APP_NAME=$(grep "android:label" app/src/main/AndroidManifest.xml | sed 's/.*android:label="\([^"]*\)".*/\1/' | tr ' ' '-' | tr '[:upper:]' '[:lower:]')
-          VERSION_NAME=$(grep "versionName" app/build.gradle.kts | sed 's/.*versionName.*"\([^"]*\)".*/\1/')
-          
-          # If we can't extract app name, use a default
-          if [ -z "$APP_NAME" ]; then
-            APP_NAME="android-app"
+          echo "Searching for AAB in app/build/outputs/bundle/release/"
+          AAB_PATH_FOUND=$(find app/build/outputs/bundle/release -name "*.aab" -type f | head -1)
+
+          if [ -z "$AAB_PATH_FOUND" ]; then
+            echo "Error: No AAB found in app/build/outputs/bundle/release. Listing contents:"
+            ls -R app/build/outputs/bundle/release || echo "Path app/build/outputs/bundle/release does not exist or is empty."
+            exit 1
           fi
-          
-          # If we can't extract version, use the tag name
-          if [ -z "$VERSION_NAME" ]; then
-            VERSION_NAME="${GITHUB_REF#refs/tags/}"
+          echo "Found AAB at: $AAB_PATH_FOUND"
+
+          APP_BASENAME_RAW="${{ github.event.repository.name }}"
+          APP_BASENAME=$(echo "$APP_BASENAME_RAW" | tr ' ' '-' | tr '[:upper:]' '[:lower:]')
+          if [ -z "$APP_BASENAME" ]; then
+            APP_BASENAME="android-app" # Fallback
           fi
+          echo "Using app basename for file: $APP_BASENAME"
+
+          VERSION_TAG_FROM_REF="${GITHUB_REF#refs/tags/}"
+          VERSION_FOR_FILENAME=$(echo "$VERSION_TAG_FROM_REF" | sed 's/^v//')
+
+          if [ -z "$VERSION_FOR_FILENAME" ]; then
+            echo "Warning: Could not determine version from Git tag ($GITHUB_REF). Using 'unknown-version'."
+            VERSION_FOR_FILENAME="unknown-version"
+          fi
+          echo "Using version for filename: $VERSION_FOR_FILENAME"
+
+          NEW_AAB_NAME="${APP_BASENAME}-${VERSION_FOR_FILENAME}.aab"
+          echo "New AAB name will be: $NEW_AAB_NAME"
           
-          NEW_AAB_NAME="${APP_NAME}-${VERSION_NAME}.aab"
-          cp "$AAB_PATH" "$NEW_AAB_NAME"
+          echo "Copying '$AAB_PATH_FOUND' to '$NEW_AAB_NAME'"
+          cp "$AAB_PATH_FOUND" "$NEW_AAB_NAME"
           echo "AAB_FILE=$NEW_AAB_NAME" >> $GITHUB_ENV
 
       - name: Upload APK to release
